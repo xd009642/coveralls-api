@@ -2,6 +2,12 @@
 name = "coveralls-api"
 version = "0.1.0"
 authors = ["Daniel McKenna <danielmckenna93@gmail.com>"]
+description = "API Bindings for coveralls.io. Deals with report creation and submission."
+repository = "https://github.com/xd009642/coveralls-api"
+readme = "README.md"
+license = "MIT/Apache-2.0"
+categories = ["API bindings", "Web programming"]
+keywords = ["API", "coveralls"]
 
 [dependencies]
 clap = "2"
