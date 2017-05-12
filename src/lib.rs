@@ -2,17 +2,42 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate md5;
 
+use std::io;
+use std::path::Path;
+use std::fs::File;
+use std::io::prelude::*;
+use std::ops::Deref;
+use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
-use serde_json::Error;
+
+
 
 /// Representation of branch data
 pub struct BranchData {
-    line_number: usize,
-    block_name: usize,
-    branch_number: usize,
-    hits: usize,
+    pub line_number: usize,
+    pub block_name: usize,
+    pub branch_number: usize,
+    pub hits: usize,
 }
+
+
+fn expand_lines(lines: &HashMap<usize, usize>, line_count: usize) -> Vec<Option<usize>> {
+    (0..line_count).map(|x| match lines.get(&(x+1)){
+        Some(x) => Some(*x),
+        None => None
+    }).collect::<Vec<Option<usize>>>()
+}
+
+
+fn expand_branches(branches: &Vec<BranchData>) -> Vec<usize> {
+    branches.iter()
+            .flat_map(|x| vec![x.line_number, x.block_name, x.branch_number, x.hits])
+            .collect::<Vec<usize>>()
+}
+
+
 
 
 /// Struct representing source files and the coverage for coveralls
@@ -21,7 +46,7 @@ pub struct Source {
     /// Name of the source file. Represented as path relative to root of repo
     name: String,
     /// MD5 hash of the source file
-    source_digest: String,
+    source_digest: [u8; 16],
     /// Coverage for the source. Each element is a line with the following rules:
     /// None - not relevant to coverage
     /// 0 - not covered
@@ -33,6 +58,44 @@ pub struct Source {
     /// Contents of the source file (Manual Repos on Enterprise only)
     #[serde(skip_serializing_if="Option::is_none")]
     source: Option<String>
+}
+
+
+impl Source {
+    /// Creates a source description for a given file.
+    /// display_name: Name given to the source file
+    /// repo_path - Path to file relative to repository root 
+    /// path - absolute path on file system
+    /// lines - map of line numbers to hits
+    /// branches - optional, vector of branches in code
+    pub fn new(repo_path: &Path, 
+           path: &Path, 
+           lines: &HashMap<usize, usize>, 
+           branches: &Option<Vec<BranchData>>,
+           include_source: bool) -> Result<Source, io::Error> {
+        
+        let mut code = File::open(path)?;
+        let mut content = String::new();
+        code.read_to_string(&mut content)?;
+        let src = if include_source {
+            Some(content.clone())
+        } else {
+            None
+        };
+
+        let brch = match branches {
+            &Some(ref b) => Some(expand_branches(&b)),
+            &None => None,
+        };
+        let line_count = content.lines().count();
+        Ok(Source {
+            name: repo_path.to_str().unwrap_or("").to_string(),
+            source_digest: *md5::compute(content).deref(),
+            coverage:  expand_lines(lines, line_count),
+            branches: brch,
+            source:src,
+        })
+    }
 }
 
 
@@ -64,10 +127,27 @@ pub struct CoverallsReport {
 }
 
 
+impl CoverallsReport {
+    /// Create new coveralls report given a unique identifier which allows 
+    /// coveralls to identify the user and project
+    pub fn new(id: Identity) -> CoverallsReport {
+        CoverallsReport {
+            id: id,
+            source_files: Vec::new()
+        }
+    }
+
+    /// Add generated source data to coveralls report.
+    pub fn add_source(&mut self, source: Source) {
+        self.source_files.push(source);
+    }
+}
+
+
 impl Serialize for CoverallsReport {
     
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        let mut size = 1 + match self.id {
+        let size = 1 + match self.id {
             Identity::RepoToken(_) => 1,
             Identity::ServiceToken(_) => 2,
         };
