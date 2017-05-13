@@ -3,10 +3,8 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate md5;
-extern crate hyper;
-extern crate hyper_native_tls;
 extern crate deflate;
-
+extern crate curl;
 
 use std::io;
 use std::path::Path;
@@ -14,12 +12,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
-use hyper::Client;
-use hyper::client::Response;
-use hyper::net::HttpsConnector;
-use hyper::header::{ContentType, ContentEncoding, Encoding};
-use hyper_native_tls::NativeTlsClient;
-use hyper::mime::{Mime, TopLevel, SubLevel};
+use curl::easy::{Easy, Form};
 use deflate::deflate_bytes_gzip;
 
 
@@ -108,6 +101,18 @@ impl Source {
     }
 }
 
+/// Reports the status of a coveralls report upload.
+pub enum UploadStatus {
+    /// Upload failed. Includes HTTP error code.
+    Failed(u32),
+    /// Upload succeeded
+    Succeeded,
+    /// Waiting for response from server or timeout
+    Pending,
+    /// Retrieving response code resulted in a CURL error no way of determining
+    /// success
+    Unknown
+}
 
 /// Service's are used for CI integration. Coveralls current supports
 /// * travis ci
@@ -134,7 +139,10 @@ pub struct CoverallsReport {
     id: Identity,
     /// List of source files which includes coverage information.
     source_files: Vec<Source>,
+    /// Handle for curl communications
+    handle: Easy,
 }
+
 
 impl CoverallsReport {
     /// Create new coveralls report given a unique identifier which allows 
@@ -142,7 +150,8 @@ impl CoverallsReport {
     pub fn new(id: Identity) -> CoverallsReport {
         CoverallsReport {
             id: id,
-            source_files: Vec::new()
+            source_files: Vec::new(),
+            handle: Easy::new(),
         }
     }
 
@@ -151,28 +160,38 @@ impl CoverallsReport {
         self.source_files.push(source);
     }
 
-    pub fn send_to_coveralls(&self) -> hyper::Result<Response> {
+    /// Send report to the coveralls.io directly. For coveralls hosted on other
+    /// platforms see send_to_endpoint
+    pub fn send_to_coveralls(&mut self) -> Result<(), curl::Error> {
         self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
     }
 
-    pub fn send_to_endpoint(&self, url: &str) -> hyper::Result<Response> {
+    /// Sends coveralls report to the specified url
+    pub fn send_to_endpoint(&mut self, url: &str) -> Result<(), curl::Error> {
         let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
         };      
-        let body = deflate_bytes_gzip(&body);
-        let ssl = NativeTlsClient::new().unwrap();
-        let connector = HttpsConnector::new(ssl);
-        let client = Client::with_connector(connector);
         
-        let non_standard_mime:Mime =  Mime(TopLevel::Ext(String::from("gzip")), 
-                                      SubLevel::Json, 
-                                      vec![]);
-        client.post(url)
-              .header(ContentType(non_standard_mime))
-              .header(ContentEncoding(vec![Encoding::Gzip]))
-              .body(body.as_slice())
-              .send()
+        let body = deflate_bytes_gzip(&body);
+        self.handle.url(url).unwrap();
+        let mut form = Form::new();
+        form.part("json_file")
+            .content_type("gzip/json")
+            .buffer("report", body)
+            .add()
+            .unwrap();
+       self.handle.httppost(form).unwrap();
+       self.handle.perform()
+    }
+
+    pub fn upload_status(&mut self) -> UploadStatus {
+        match self.handle.response_code() {
+            Ok(200) => UploadStatus::Succeeded,
+            Ok(0) => UploadStatus::Pending,
+            Ok(x) => UploadStatus::Failed(x),
+            _ => UploadStatus::Unknown,
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "coveralls-api"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Daniel McKenna <danielmckenna93@gmail.com>"]
 description = "API Bindings for coveralls.io. Deals with report creation and submission."
 repository = "https://github.com/xd009642/coveralls-api"
@@ -10,13 +10,11 @@ categories = ["api-bindings", "web-programming::http-client"]
 keywords = ["API", "coveralls"]
 
 [dependencies]
-clap = "2"
 serde = "1.0.2"
 serde_json = "1.0.2"
 serde_derive = "1.0.2"
 md5 = "0.3.4"
-hyper = "0.10.10"
-hyper-native-tls = "0.2.2"
+curl = "0.4.6"
 
 [dependencies.deflate]
 version = "0.7.11"
