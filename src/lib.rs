@@ -8,7 +8,6 @@ use std::io;
 use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
-use std::ops::Deref;
 use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
 
@@ -46,7 +45,7 @@ pub struct Source {
     /// Name of the source file. Represented as path relative to root of repo
     name: String,
     /// MD5 hash of the source file
-    source_digest: [u8; 16],
+    source_digest: String,
     /// Coverage for the source. Each element is a line with the following rules:
     /// None - not relevant to coverage
     /// 0 - not covered
@@ -90,7 +89,7 @@ impl Source {
         let line_count = content.lines().count();
         Ok(Source {
             name: repo_path.to_str().unwrap_or("").to_string(),
-            source_digest: *md5::compute(content).deref(),
+            source_digest: format!("{:x}", md5::compute(content)),
             coverage:  expand_lines(lines, line_count),
             branches: brch,
             source:src,
