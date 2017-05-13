@@ -27,7 +27,7 @@ pub struct BranchData {
     pub hits: usize,
 }
 
-
+/// Expands the line map into the form expected by coveralls (includes uncoverable lines)
 fn expand_lines(lines: &HashMap<usize, usize>, line_count: usize) -> Vec<Option<usize>> {
     (0..line_count).map(|x| match lines.get(&(x+1)){
         Some(x) => Some(*x),
@@ -35,7 +35,8 @@ fn expand_lines(lines: &HashMap<usize, usize>, line_count: usize) -> Vec<Option<
     }).collect::<Vec<Option<usize>>>()
 }
 
-
+/// Expands branch coverage into the less user friendly format used by coveralls -
+/// an array with the contents of the structs repeated one after another in an array.
 fn expand_branches(branches: &Vec<BranchData>) -> Vec<usize> {
     branches.iter()
             .flat_map(|x| vec![x.line_number, x.block_name, x.branch_number, x.hits])
@@ -155,7 +156,8 @@ impl CoverallsReport {
         let body = match serde_json::to_string(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
-        };       
+        };      
+        
         let ssl = NativeTlsClient::new().unwrap();
         let connector = HttpsConnector::new(ssl);
         let client = Client::with_connector(connector);
@@ -188,3 +190,45 @@ impl Serialize for CoverallsReport {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+
+    use std::collections::HashMap;
+    use ::*;
+
+    #[test]
+    fn test_expand_lines() {
+        let line_count = 10;
+        let mut example: HashMap<usize, usize> = HashMap::new();
+        example.insert(5, 1);
+        example.insert(6, 1);
+        example.insert(8, 2);
+        
+        let expected = vec![None, None, None, None, Some(1), Some(1), None, Some(2), None, None];
+
+        assert_eq!(expand_lines(&example, line_count), expected);
+    }
+
+    #[test]
+    fn test_branch_expand() {
+        let b1 = BranchData {
+            line_number: 3,
+            block_name: 1,
+            branch_number: 1,
+            hits: 1,
+        };
+        let b2 = BranchData {
+            line_number:4,
+            block_name: 1,
+            branch_number: 2,
+            hits: 0
+        };
+
+        let v = vec![b1, b2];
+        let actual = expand_branches(&v);
+        let expected = vec![3,1,1,1,4,1,2,0];
+        assert_eq!(actual, expected);    
+    }
+
+}

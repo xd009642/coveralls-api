@@ -12,7 +12,7 @@ fn test_submission() {
         Ok(key) => key,
         Err(_) => panic!("COVERALLS_KEY is not set. Cannot test"),
     };
-    let repo_path = Path::new(file!());
+    let repo_path = Path::new("tests/example/mysource.rs");
     let mut abs_path = env::current_dir().unwrap();
     abs_path.push(repo_path);
     assert!(abs_path.exists(), "Run the test from project root directory");
@@ -31,6 +31,6 @@ fn test_submission() {
     let mut report = CoverallsReport::new(Identity::RepoToken(secret_key));
     report.add_source(source);
 
-    report.send_to_coveralls().unwrap();
-
+    let code = report.send_to_coveralls().unwrap();
+    assert!(code.status.to_u16()< 400)
 }
