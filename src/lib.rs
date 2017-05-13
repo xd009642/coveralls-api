@@ -3,6 +3,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate md5;
+extern crate hyper;
 
 use std::io;
 use std::path::Path;
@@ -10,7 +11,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
-
+use hyper::Url;
+use hyper::client::request::Request;
+use hyper::method::Method;
+use hyper::header::ContentLength;
 
 
 /// Representation of branch data
@@ -139,6 +143,33 @@ impl CoverallsReport {
     /// Add generated source data to coveralls report.
     pub fn add_source(&mut self, source: Source) {
         self.source_files.push(source);
+    }
+
+    pub fn send_to_coveralls(&self) -> hyper::Result<String> {
+        self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
+    }
+
+    pub fn send_to_endpoint(&self, url: &str) -> hyper::Result<String> {
+        let url = match Url::parse(url) {
+            Ok(url) => url,
+            Err(e) => return Err(hyper::Error::Uri(e)),
+        };
+        let body = match serde_json::to_string(&self) {
+            Ok(body) => body,
+            Err(e) => panic!("Error {}", e),
+        };
+
+        let mut request = Request::new(Method::Post, url)?;
+        request.headers_mut().set(ContentLength(body.len() as u64));
+        let mut stream = request.start()?;
+        stream.write(&body.into_bytes())?;
+        let mut resp = stream.send()?;
+
+        let mut result = String::new();
+        match resp.read_to_string(&mut result) {
+            Ok(_) => Ok(result),
+            Err(e) => Err(hyper::Error::Io(e))
+        }
     }
 }
 
