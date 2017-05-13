@@ -1,5 +1,5 @@
 extern crate coveralls_api;
-
+extern crate serde_json;
 use std::env;
 use std::path::Path;
 use std::collections::HashMap;
@@ -7,7 +7,6 @@ use coveralls_api::*;
 
 #[test]
 fn test_submission() {
-    println!("{}", file!()); 
     let secret_key = match std::env::var("COVERALLS_KEY") {
         Ok(key) => key,
         Err(_) => panic!("COVERALLS_KEY is not set. Cannot test"),
@@ -32,5 +31,5 @@ fn test_submission() {
     report.add_source(source);
 
     let code = report.send_to_coveralls().unwrap();
-    assert!(code.status.to_u16()< 400)
+    assert!(code.status.to_u16()< 400, format!("{:#?}" ,code))
 }

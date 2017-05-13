@@ -5,6 +5,7 @@ extern crate serde_derive;
 extern crate md5;
 extern crate hyper;
 extern crate hyper_native_tls;
+extern crate deflate;
 
 
 use std::io;
@@ -16,7 +17,10 @@ use serde::ser::{Serialize, Serializer, SerializeStruct};
 use hyper::Client;
 use hyper::client::Response;
 use hyper::net::HttpsConnector;
+use hyper::header::{ContentType, ContentEncoding, Encoding};
 use hyper_native_tls::NativeTlsClient;
+use hyper::mime::{Mime, TopLevel, SubLevel};
+use deflate::deflate_bytes_gzip;
 
 
 /// Representation of branch data
@@ -132,7 +136,6 @@ pub struct CoverallsReport {
     source_files: Vec<Source>,
 }
 
-
 impl CoverallsReport {
     /// Create new coveralls report given a unique identifier which allows 
     /// coveralls to identify the user and project
@@ -153,16 +156,22 @@ impl CoverallsReport {
     }
 
     pub fn send_to_endpoint(&self, url: &str) -> hyper::Result<Response> {
-        let body = match serde_json::to_string(&self) {
+        let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
         };      
-        
+        let body = deflate_bytes_gzip(&body);
         let ssl = NativeTlsClient::new().unwrap();
         let connector = HttpsConnector::new(ssl);
         let client = Client::with_connector(connector);
+        
+        let non_standard_mime:Mime =  Mime(TopLevel::Ext(String::from("gzip")), 
+                                      SubLevel::Json, 
+                                      vec![]);
         client.post(url)
-              .body(body.as_bytes())
+              .header(ContentType(non_standard_mime))
+              .header(ContentEncoding(vec![Encoding::Gzip]))
+              .body(body.as_slice())
               .send()
     }
 }
@@ -179,6 +188,7 @@ impl Serialize for CoverallsReport {
         match self.id {
             Identity::RepoToken(ref r) => {
                 s.serialize_field("repo_token", &r)?;
+                s.serialize_field("service_name", &"travis-ci")?;
             },
             Identity::ServiceToken(ref serv) => {
                 s.serialize_field("service_name", &serv.service_name)?;
