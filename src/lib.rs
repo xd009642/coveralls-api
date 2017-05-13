@@ -4,6 +4,8 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate md5;
 extern crate hyper;
+extern crate hyper_native_tls;
+
 
 use std::io;
 use std::path::Path;
@@ -11,10 +13,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
-use hyper::Url;
-use hyper::client::request::Request;
-use hyper::method::Method;
-use hyper::header::ContentLength;
+use hyper::Client;
+use hyper::client::Response;
+use hyper::net::HttpsConnector;
+use hyper_native_tls::NativeTlsClient;
 
 
 /// Representation of branch data
@@ -145,31 +147,21 @@ impl CoverallsReport {
         self.source_files.push(source);
     }
 
-    pub fn send_to_coveralls(&self) -> hyper::Result<String> {
+    pub fn send_to_coveralls(&self) -> hyper::Result<Response> {
         self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
     }
 
-    pub fn send_to_endpoint(&self, url: &str) -> hyper::Result<String> {
-        let url = match Url::parse(url) {
-            Ok(url) => url,
-            Err(e) => return Err(hyper::Error::Uri(e)),
-        };
+    pub fn send_to_endpoint(&self, url: &str) -> hyper::Result<Response> {
         let body = match serde_json::to_string(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
-        };
-
-        let mut request = Request::new(Method::Post, url)?;
-        request.headers_mut().set(ContentLength(body.len() as u64));
-        let mut stream = request.start()?;
-        stream.write(&body.into_bytes())?;
-        let mut resp = stream.send()?;
-
-        let mut result = String::new();
-        match resp.read_to_string(&mut result) {
-            Ok(_) => Ok(result),
-            Err(e) => Err(hyper::Error::Io(e))
-        }
+        };       
+        let ssl = NativeTlsClient::new().unwrap();
+        let connector = HttpsConnector::new(ssl);
+        let client = Client::with_connector(connector);
+        client.post(url)
+              .body(body.as_bytes())
+              .send()
     }
 }
 
