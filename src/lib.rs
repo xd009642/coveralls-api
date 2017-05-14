@@ -182,6 +182,7 @@ pub struct Service {
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
+#[derive(Clone)]
 pub enum Identity {
     RepoToken(String),
     ServiceToken(Service)
