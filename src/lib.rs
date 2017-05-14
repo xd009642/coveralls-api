@@ -139,7 +139,7 @@ pub enum UploadStatus {
 
 /// Continuous Integration services and the string identifiers coveralls.io
 /// uses to present them.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CiService {
     Travis,
     TravisPro,
@@ -176,6 +176,7 @@ impl CiService {
 /// * Semaphore
 /// * JenkinsCI
 /// * Codeship
+#[derive(Clone)]
 pub struct Service {
     pub service_name: CiService,
     pub service_job_id: String,
