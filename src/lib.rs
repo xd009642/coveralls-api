@@ -146,19 +146,20 @@ pub enum CiServices {
     Semaphore,
     Jenkins,
     Codeship,
-    /// Not a ci service but has special features so the API groups it as such
-    Ruby
+    /// Other Ci Service, coveralls-ruby is a valid input which gives same features
+    /// as travis for coveralls users.
+    Other(String)
 }
 
 impl CiServices {
-    fn value<'a>(&self) -> &'a str {
+    fn value<'a>(&'a self) -> &'a str {
         use CiServices::*;
         // Only travis and ruby have special features but the others might gain
         // those features in future so best to put them all for now.
         match *self {
             Travis => "travis-ci",
             TravisPro => "travis-pro",
-            Ruby => "coveralls-ruby",
+            Other(ref x) => x.as_str(),
             Circle => "circle-ci",
             Semaphore => "semaphore",
             Jenkins => "jenkins",
