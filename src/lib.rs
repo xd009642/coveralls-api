@@ -101,6 +101,29 @@ impl Source {
     }
 }
 
+#[derive(Serialize)]
+pub struct Head {
+    pub id: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub committer_name: String,
+    pub committer_email: String,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct Remote {
+    pub name: String,
+    pub url: String,
+}
+
+#[derive(Serialize)]
+pub struct GitInfo {
+    pub head: Head,
+    pub branch: String,
+    pub remotes: Vec<Remote>
+}
+
 /// Reports the status of a coveralls report upload.
 pub enum UploadStatus {
     /// Upload failed. Includes HTTP error code.
@@ -122,8 +145,8 @@ pub enum UploadStatus {
 /// * JenkinsCI
 /// * Codeship
 pub struct Service {
-    service_name: String,
-    service_job_id: String,
+    pub service_name: String,
+    pub service_job_id: String,
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
@@ -139,6 +162,10 @@ pub struct CoverallsReport {
     id: Identity,
     /// List of source files which includes coverage information.
     source_files: Vec<Source>,
+    /// Git commit SHA
+    commit: Option<String>,
+    /// Git information
+    git: Option<GitInfo>,
     /// Handle for curl communications
     handle: Easy,
 }
@@ -151,6 +178,8 @@ impl CoverallsReport {
         CoverallsReport {
             id: id,
             source_files: Vec::new(),
+            commit: None,
+            git: None,
             handle: Easy::new(),
         }
     }
@@ -158,6 +187,18 @@ impl CoverallsReport {
     /// Add generated source data to coveralls report.
     pub fn add_source(&mut self, source: Source) {
         self.source_files.push(source);
+    }
+    
+    /// Sets the commit ID. Overrides more detailed git info
+    pub fn set_commit(&mut self, commit: &str) {
+        self.commit = Some(commit.to_string());
+        self.git = None;
+    }
+
+    /// Set detailed git information, overrides commit ID if set.
+    pub fn set_detailed_git_info(&mut self, git: GitInfo) {
+        self.git = Some(git);
+        self.commit = None;
     }
 
     /// Send report to the coveralls.io directly. For coveralls hosted on other
@@ -200,19 +241,24 @@ impl Serialize for CoverallsReport {
     
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         let size = 1 + match self.id {
-            Identity::RepoToken(_) => 1,
-            Identity::ServiceToken(_) => 2,
+            Identity::RepoToken(_) => 1 + self.commit.is_some() as usize,
+            Identity::ServiceToken(_) => 2 + self.commit.is_some() as usize,
         };
         let mut s = serializer.serialize_struct("CoverallsReport", size)?;
         match self.id {
             Identity::RepoToken(ref r) => {
                 s.serialize_field("repo_token", &r)?;
-                s.serialize_field("service_name", &"travis-ci")?;
             },
             Identity::ServiceToken(ref serv) => {
                 s.serialize_field("service_name", &serv.service_name)?;
                 s.serialize_field("service_job_id", &serv.service_job_id)?;
             },
+        }
+        if let Some(ref sha) = self.commit {
+            s.serialize_field("commit_sha", &sha)?;
+        }
+        if let Some(ref git) = self.git {
+            s.serialize_field("git", &git)?;
         }
         s.serialize_field("source_files", &self.source_files)?;
         s.end()

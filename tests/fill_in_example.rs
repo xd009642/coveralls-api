@@ -1,17 +1,24 @@
 extern crate coveralls_api;
 extern crate serde_json;
 use std::env;
-use std::io::Read;
 use std::path::Path;
 use std::collections::HashMap;
 use coveralls_api::*;
 
 #[test]
 fn test_submission() {
-    let secret_key = match std::env::var("COVERALLS_KEY") {
+    let mut travis = true;
+    let mut secret_key = match std::env::var("TRAVIS_JOB_ID") {
         Ok(key) => key,
-        Err(_) => panic!("COVERALLS_KEY is not set. Cannot test"),
-    };
+        Err(_) => String::new(),
+    }
+    if secret_key.is_empty() {
+        travis = false;
+        secret_key = match std::env::var("COVERALLS_KEY") {
+            Ok(key) => key,
+            Err(_) => panic!("COVERALLS_KEY is not set. Cannot test"),
+        };
+    }
     let repo_path = Path::new("tests/example/mysource.rs");
     let mut abs_path = env::current_dir().unwrap();
     abs_path.push(repo_path);
@@ -28,11 +35,19 @@ fn test_submission() {
                              &lines,
                              &None,
                              false).unwrap();
-
-    let mut report = CoverallsReport::new(Identity::RepoToken(secret_key));
+    let id = if travis {
+        let serv = Service{
+            service_name:String::from("travis-ci"),
+            service_job_id:secret_key
+        };
+        Identity::ServiceToken(serv)
+    } else {
+        Identity::RepoToken(secret_key)
+    };
+    let mut report = CoverallsReport::new(id);
     report.add_source(source);
 
-    report.send_to_coveralls();
+    report.send_to_coveralls().unwrap();
     loop {
         match report.upload_status() {
             UploadStatus::Failed(x) => panic!("Upload failed! HTTP{}", x),
