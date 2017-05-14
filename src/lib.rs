@@ -139,7 +139,7 @@ pub enum UploadStatus {
 
 /// Continuous Integration services and the string identifiers coveralls.io
 /// uses to present them.
-pub enum CiServices {
+pub enum CiService {
     Travis,
     TravisPro,
     Circle,
@@ -151,9 +151,9 @@ pub enum CiServices {
     Other(String)
 }
 
-impl CiServices {
+impl CiService {
     fn value<'a>(&'a self) -> &'a str {
-        use CiServices::*;
+        use CiService::*;
         // Only travis and ruby have special features but the others might gain
         // those features in future so best to put them all for now.
         match *self {
@@ -176,7 +176,7 @@ impl CiServices {
 /// * JenkinsCI
 /// * Codeship
 pub struct Service {
-    pub service_name: CiServices,
+    pub service_name: CiService,
     pub service_job_id: String,
 }
 
