@@ -40,7 +40,7 @@ fn test_submission() {
                              false).unwrap();
     let id = if travis {
         let serv = Service{
-            service_name:String::from("travis-ci"),
+            service_name: CiServices::Travis,
             service_job_id:secret_key
         };
         Identity::ServiceToken(serv)

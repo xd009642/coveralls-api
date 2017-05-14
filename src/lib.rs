@@ -137,6 +137,36 @@ pub enum UploadStatus {
     Unknown
 }
 
+/// Continuous Integration services and the string identifiers coveralls.io
+/// uses to present them.
+pub enum CiServices {
+    Travis,
+    TravisPro,
+    Circle,
+    Semaphore,
+    Jenkins,
+    Codeship,
+    /// Not a ci service but has special features so the API groups it as such
+    Ruby
+}
+
+impl CiServices {
+    fn value<'a>(&self) -> &'a str {
+        use CiServices::*;
+        // Only travis and ruby have special features but the others might gain
+        // those features in future so best to put them all for now.
+        match *self {
+            Travis => "travis-ci",
+            TravisPro => "travis-pro",
+            Ruby => "coveralls-ruby",
+            Circle => "circle-ci",
+            Semaphore => "semaphore",
+            Jenkins => "jenkins",
+            Codeship => "codeship",
+        }
+    }
+}
+
 /// Service's are used for CI integration. Coveralls current supports
 /// * travis ci
 /// * travis pro
@@ -145,7 +175,7 @@ pub enum UploadStatus {
 /// * JenkinsCI
 /// * Codeship
 pub struct Service {
-    pub service_name: String,
+    pub service_name: CiServices,
     pub service_job_id: String,
 }
 
@@ -250,7 +280,7 @@ impl Serialize for CoverallsReport {
                 s.serialize_field("repo_token", &r)?;
             },
             Identity::ServiceToken(ref serv) => {
-                s.serialize_field("service_name", &serv.service_name)?;
+                s.serialize_field("service_name", serv.service_name.value())?;
                 s.serialize_field("service_job_id", &serv.service_job_id)?;
             },
         }
