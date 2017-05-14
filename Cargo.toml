@@ -1,6 +1,6 @@
 [package]
 name = "coveralls-api"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Daniel McKenna <danielmckenna93@gmail.com>"]
 description = "API Bindings for coveralls.io. Deals with report creation and submission."
 repository = "https://github.com/xd009642/coveralls-api"
