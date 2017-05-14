@@ -11,13 +11,16 @@ fn test_submission() {
     let mut secret_key = match std::env::var("TRAVIS_JOB_ID") {
         Ok(key) => key,
         Err(_) => String::new(),
-    }
+    };
     if secret_key.is_empty() {
+        println!("Running using Coveralls key");
         travis = false;
         secret_key = match std::env::var("COVERALLS_KEY") {
             Ok(key) => key,
             Err(_) => panic!("COVERALLS_KEY is not set. Cannot test"),
         };
+    } else {
+        println!("Running with travis job id");
     }
     let repo_path = Path::new("tests/example/mysource.rs");
     let mut abs_path = env::current_dir().unwrap();
