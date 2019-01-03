@@ -17,6 +17,7 @@ use deflate::deflate_bytes_gzip;
 
 
 /// Representation of branch data
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 pub struct BranchData {
     pub line_number: usize,
     pub block_name: usize,
@@ -44,7 +45,7 @@ fn expand_branches(branches: &Vec<BranchData>) -> Vec<usize> {
 
 
 /// Struct representing source files and the coverage for coveralls
-#[derive(Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 pub struct Source {
     /// Name of the source file. Represented as path relative to root of repo
     name: String,
@@ -101,7 +102,7 @@ impl Source {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 pub struct Head {
     pub id: String,
     pub author_name: String,
@@ -111,13 +112,13 @@ pub struct Head {
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 pub struct Remote {
     pub name: String,
     pub url: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 pub struct GitInfo {
     pub head: Head,
     pub branch: String,
@@ -125,6 +126,7 @@ pub struct GitInfo {
 }
 
 /// Reports the status of a coveralls report upload.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
 pub enum UploadStatus {
     /// Upload failed. Includes HTTP error code.
     Failed(u32),
@@ -139,7 +141,7 @@ pub enum UploadStatus {
 
 /// Continuous Integration services and the string identifiers coveralls.io
 /// uses to present them.
-#[derive(Debug, Clone)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
 pub enum CiService {
     Travis,
     TravisPro,
@@ -176,14 +178,14 @@ impl CiService {
 /// * Semaphore
 /// * JenkinsCI
 /// * Codeship
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
 pub struct Service {
     pub service_name: CiService,
     pub service_job_id: String,
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
 pub enum Identity {
     RepoToken(String),
     ServiceToken(Service)
