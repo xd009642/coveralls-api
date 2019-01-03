@@ -11,6 +11,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
 use curl::easy::{Easy, Form};
 use deflate::deflate_bytes_gzip;
@@ -152,6 +153,24 @@ pub enum CiService {
     /// Other Ci Service, coveralls-ruby is a valid input which gives same features
     /// as travis for coveralls users.
     Other(String)
+}
+
+impl FromStr for CiService {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let res = match s {
+            "travis-ci" => CiService::Travis,
+            "travis-pro" => CiService::TravisPro,
+            "circle-ci" => CiService::Circle,
+            "semaphore" => CiService::Semaphore,
+            "jenkins" => CiService::Jenkins,
+            "codeship" => CiService::Codeship,
+            e => CiService::Other(e.to_string()),
+        };
+        Ok(res)
+    }
+
 }
 
 impl CiService {
