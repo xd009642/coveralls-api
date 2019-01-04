@@ -197,14 +197,24 @@ impl CiService {
 /// * Semaphore
 /// * JenkinsCI
 /// * Codeship
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Service {
-    pub service_name: CiService,
-    pub service_job_id: String,
+    /// Name of the CiService
+    pub name: CiService,
+    /// Job ID
+    pub job_id: String,
+    /// Optional service_number
+    pub number: Option<String>,
+    /// Optional service_build_url
+    pub build_url: Option<String>,
+    /// Optional service_branch
+    pub branch: Option<String>,
+    /// Optional service_pull_request
+    pub pull_request: Option<String>,
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identity {
     RepoToken(String),
     ServiceToken(Service)
@@ -305,8 +315,20 @@ impl Serialize for CoverallsReport {
                 s.serialize_field("repo_token", &r)?;
             },
             Identity::ServiceToken(ref serv) => {
-                s.serialize_field("service_name", serv.service_name.value())?;
-                s.serialize_field("service_job_id", &serv.service_job_id)?;
+                s.serialize_field("service_name", serv.name.value())?;
+                s.serialize_field("service_job_id", &serv.job_id)?;
+                if let Some(ref num) = serv.number {
+                    s.serialize_field("service_number", &num)?;
+                }
+                if let Some(ref url) = serv.build_url {
+                    s.serialize_field("service_build_url", &url)?;
+                }
+                if let Some(ref branch) = serv.branch {
+                    s.serialize_field("service_branch", &branch)?;
+                }
+                if let Some(ref pr) = serv.pull_request {
+                    s.serialize_field("service_pull_request", &pr)?;
+                }
             },
         }
         if let Some(ref sha) = self.commit {
