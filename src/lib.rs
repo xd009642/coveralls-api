@@ -314,6 +314,34 @@ pub enum Identity {
     ServiceToken(Service)
 }
 
+impl Identity {
+    /// Creates a report identity from a coveralls repo token if one is available
+    /// Only checks via environment variables - this doesn't take into account 
+    /// the presence of a .coveralls.yml file
+    pub fn from_token() -> Option<Self> {
+        if let Ok(token) = var("COVERALLS_REPO_TOKEN") {
+            Some(Identity::RepoToken(token))
+        } else {
+            None
+        }
+    }
+
+    /// Creates a report identity based on the CI service auto-detect functionality
+    pub fn from_env() -> Self {
+        Identity::ServiceToken(Service::from_env())
+    }
+
+    /// Prefers a coveralls repo token otherwise falls back on CI environment 
+    /// variables
+    pub fn best_match() -> Self {
+        if let Some(s) = Self::from_token() {
+            s
+        } else {
+            Self::from_env()
+        }
+    }
+}
+
 
 /// Coveralls report struct 
 /// for more details: https://coveralls.zendesk.com/hc/en-us/articles/201350799-API-Reference 
