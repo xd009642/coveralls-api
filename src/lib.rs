@@ -230,6 +230,21 @@ impl Service {
         }
     }
 
+    pub fn from_ci(ci: CiService) -> Option<Self> {
+        use CiService::*;
+        match ci { 
+            Travis | TravisPro => {
+                let mut temp = Self::get_travis_env();
+                temp.name = ci;
+                Some(temp)
+            },
+            Circle => Some(Self::get_circle_env()),
+            Semaphore => Some(Self::get_semaphore_env()),
+            Jenkins => Some(Self::get_jenkins_env()),
+            _ => Self::get_generic_env(),
+        }
+    }
+
     /// Gets service variables from travis environment
     /// Warning is unable to figure out if travis pro or free so assumes free
     pub fn get_travis_env() -> Self {
