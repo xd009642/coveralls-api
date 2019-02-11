@@ -6,6 +6,7 @@ extern crate md5;
 extern crate deflate;
 extern crate curl;
 
+use std::env::var;
 use std::io;
 use std::path::Path;
 use std::fs::File;
@@ -202,7 +203,7 @@ pub struct Service {
     /// Name of the CiService
     pub name: CiService,
     /// Job ID
-    pub job_id: String,
+    pub job_id: Option<String>,
     /// Optional service_number
     pub number: Option<String>,
     /// Optional service_build_url
@@ -211,6 +212,99 @@ pub struct Service {
     pub branch: Option<String>,
     /// Optional service_pull_request
     pub pull_request: Option<String>,
+}
+
+impl Service {
+    pub fn from_env() -> Self {
+
+        if var("TRAVIS").is_ok() {
+            Self::get_travis_env()
+        } else if var("CIRCLECI").is_ok() {
+            Self::get_circle_env()
+        } else if var("JENKINS_URL").is_ok() {
+            Self::get_jenkins_env()
+        } else if var("SEMAPHORE").is_ok() {
+            Self::get_semaphore_env()
+        } else {
+            Self::get_generic_env()
+        }
+    }
+
+    /// Gets service variables from travis environment
+    /// Warning is unable to figure out if travis pro or free so assumes free
+    pub fn get_travis_env() -> Self {
+        let id = var("TRAVIS_JOB_ID").ok();
+        let pr = match var("TRAVIS_PULL_REQUEST") {
+            Ok(ref s) if s != "false" => Some(s.to_string()),
+            _ => None,
+        };
+        let branch = var("TRAVIS_BRANCH").ok();
+        Service {
+            name: CiService::Travis,
+            job_id: id,
+            number: None,
+            build_url: None,
+            pull_request: pr,
+            branch: branch,
+        }
+    }
+
+    pub fn get_circle_env() -> Self {
+        let num = var("CIRCLE_BUILD_NUM").ok();
+        let branch = var("CIRCLE_BRANCH").ok();
+        Service {
+            name: CiService::Circle,
+            job_id: None, // Not happy with this but apparently it works
+            number: num,
+            build_url: None,
+            pull_request: None,
+            branch: branch,
+        }
+    }
+
+    pub fn get_jenkins_env() -> Self {
+        let num = var("BUILD_NUM").ok();
+        let url = var("BUILD_URL").ok();
+        let branch = var("GIT_BRANCH").ok();
+        Service {
+            name: CiService::Jenkins,
+            job_id: None, // Not happy with this but apparently it works
+            number: num,
+            build_url: url,
+            pull_request: None,
+            branch: branch,
+        }
+    }
+
+    pub fn get_semaphore_env() -> Self {
+        let num = var("SEMAPHORE_BUILD_NUMBER").ok();
+        let pr = var("PULL_REQUEST_NUMBER").ok();
+        Service{
+            name: CiService::Semaphore,
+            job_id: None,
+            number: num,
+            pull_request: pr,
+            branch: None,
+            build_url: None,
+        }
+    }
+
+    pub fn get_generic_env() -> Self {
+        let name = var("CI_NAME").ok().unwrap_or_else(|| "unknown".to_string());
+        let num = var("CI_BUILD_NUMBER").ok();
+        let id = var("CI_JOB_ID").ok();
+        let url = var("CI_BUILD_URL").ok();
+        let branch = var("CI_BRANCH").ok();
+        let pr = var("CI_PULL_REQUEST").ok();
+        Service {
+            name: CiService::from_str(&name).unwrap(),
+            job_id: id,
+            number: num,
+            pull_request: pr,
+            branch: branch,
+            build_url: url,
+        }
+    }
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
@@ -316,7 +410,9 @@ impl Serialize for CoverallsReport {
             },
             Identity::ServiceToken(ref serv) => {
                 s.serialize_field("service_name", serv.name.value())?;
-                s.serialize_field("service_job_id", &serv.job_id)?;
+                if let Some(ref id) = serv.job_id {
+                    s.serialize_field("service_job_id", id)?;
+                }
                 if let Some(ref num) = serv.number {
                     s.serialize_field("service_number", &num)?;
                 }
