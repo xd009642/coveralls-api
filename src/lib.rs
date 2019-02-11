@@ -215,16 +215,16 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> Option<Self> {
 
         if var("TRAVIS").is_ok() {
-            Self::get_travis_env()
+            Some(Self::get_travis_env())
         } else if var("CIRCLECI").is_ok() {
-            Self::get_circle_env()
+            Some(Self::get_circle_env())
         } else if var("JENKINS_URL").is_ok() {
-            Self::get_jenkins_env()
+            Some(Self::get_jenkins_env())
         } else if var("SEMAPHORE").is_ok() {
-            Self::get_semaphore_env()
+            Some(Self::get_semaphore_env())
         } else {
             Self::get_generic_env()
         }
@@ -289,20 +289,28 @@ impl Service {
         }
     }
 
-    pub fn get_generic_env() -> Self {
-        let name = var("CI_NAME").ok().unwrap_or_else(|| "unknown".to_string());
+    pub fn get_generic_env() -> Option<Self> {
+        let name = var("CI_NAME").ok();
         let num = var("CI_BUILD_NUMBER").ok();
         let id = var("CI_JOB_ID").ok();
         let url = var("CI_BUILD_URL").ok();
         let branch = var("CI_BRANCH").ok();
         let pr = var("CI_PULL_REQUEST").ok();
-        Service {
-            name: CiService::from_str(&name).unwrap(),
-            job_id: id,
-            number: num,
-            pull_request: pr,
-            branch: branch,
-            build_url: url,
+        if name.is_some() || num.is_some() || id.is_some() || url.is_some() ||
+            branch.is_some() || pr.is_some() {
+            
+            let name = name.unwrap_or_else(|| "unknown".to_string());
+            
+            Some(Service {
+                name: CiService::from_str(&name).unwrap(),
+                job_id: id,
+                number: num,
+                pull_request: pr,
+                branch: branch,
+                build_url: url,
+            })
+        } else {
+            None
         }
     }
 }
@@ -319,25 +327,29 @@ impl Identity {
     /// Only checks via environment variables - this doesn't take into account 
     /// the presence of a .coveralls.yml file
     pub fn from_token() -> Option<Self> {
-        if let Ok(token) = var("COVERALLS_REPO_TOKEN") {
-            Some(Identity::RepoToken(token))
-        } else {
-            None
+        match var("COVERALLS_REPO_TOKEN") {
+            Ok(token) => Some(Identity::RepoToken(token)),
+            _ => None,
         }
     }
 
     /// Creates a report identity based on the CI service auto-detect functionality
-    pub fn from_env() -> Self {
-        Identity::ServiceToken(Service::from_env())
+    pub fn from_env() -> Option<Self> {
+        match Service::from_env() {
+            Some(s) => Some(Identity::ServiceToken(s)),
+            _ => None
+        }
     }
 
     /// Prefers a coveralls repo token otherwise falls back on CI environment 
     /// variables
-    pub fn best_match() -> Self {
-        if let Some(s) = Self::from_token() {
-            s
+    pub fn best_match() -> Option<Self> {
+        if let Some(s) = Self::from_env() {
+            Some(s)
+        } else if let Some(s) = Self::from_token() {
+            Some(s)
         } else {
-            Self::from_env()
+            None
         }
     }
 }
