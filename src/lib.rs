@@ -334,7 +334,7 @@ impl Service {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identity {
     RepoToken(String),
-    ServiceToken(Service)
+    ServiceToken(String, Service)
 }
 
 impl Identity {
@@ -350,8 +350,12 @@ impl Identity {
 
     /// Creates a report identity based on the CI service auto-detect functionality
     pub fn from_env() -> Option<Self> {
+        let token = match var("COVERALLS_REPO_TOKEN") {
+            Ok(token) => token,
+            _ => String::new(),
+        };
         match Service::from_env() {
-            Some(s) => Some(Identity::ServiceToken(s)),
+            Some(s) => Some(Identity::ServiceToken(token, s)),
             _ => None
         }
     }
@@ -456,14 +460,17 @@ impl Serialize for CoverallsReport {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         let size = 1 + match self.id {
             Identity::RepoToken(_) => 1 + self.commit.is_some() as usize,
-            Identity::ServiceToken(_) => 2 + self.commit.is_some() as usize,
+            Identity::ServiceToken(_, _) => 2 + self.commit.is_some() as usize,
         };
         let mut s = serializer.serialize_struct("CoverallsReport", size)?;
         match self.id {
             Identity::RepoToken(ref r) => {
                 s.serialize_field("repo_token", &r)?;
             },
-            Identity::ServiceToken(ref serv) => {
+            Identity::ServiceToken(ref r, ref serv) => {
+                if !r.is_empty() {
+                    s.serialize_field("repo_token", &r)?;
+                }
                 s.serialize_field("service_name", serv.name.value())?;
                 if let Some(ref id) = serv.job_id {
                     s.serialize_field("service_job_id", id)?;
