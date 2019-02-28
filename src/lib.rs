@@ -371,6 +371,14 @@ impl Identity {
             None
         }
     }
+
+    pub fn best_match_with_token(token: String) -> Self {
+        if let Some(Identity::ServiceToken(_, s)) = Self::from_env() {
+            Identity::ServiceToken(token, s)
+        } else {
+            Identity::RepoToken(token)
+        }
+    }
 }
 
 
