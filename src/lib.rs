@@ -6,6 +6,7 @@ extern crate md5;
 extern crate deflate;
 extern crate curl;
 
+use std::env::var;
 use std::io;
 use std::path::Path;
 use std::fs::File;
@@ -197,17 +198,187 @@ impl CiService {
 /// * Semaphore
 /// * JenkinsCI
 /// * Codeship
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Service {
-    pub service_name: CiService,
-    pub service_job_id: String,
+    /// Name of the CiService
+    pub name: CiService,
+    /// Job ID
+    pub job_id: Option<String>,
+    /// Optional service_number
+    pub number: Option<String>,
+    /// Optional service_build_url
+    pub build_url: Option<String>,
+    /// Optional service_branch
+    pub branch: Option<String>,
+    /// Optional service_pull_request
+    pub pull_request: Option<String>,
+}
+
+impl Service {
+    pub fn from_env() -> Option<Self> {
+
+        if var("TRAVIS").is_ok() {
+            Some(Self::get_travis_env())
+        } else if var("CIRCLECI").is_ok() {
+            Some(Self::get_circle_env())
+        } else if var("JENKINS_URL").is_ok() {
+            Some(Self::get_jenkins_env())
+        } else if var("SEMAPHORE").is_ok() {
+            Some(Self::get_semaphore_env())
+        } else {
+            Self::get_generic_env()
+        }
+    }
+
+    pub fn from_ci(ci: CiService) -> Option<Self> {
+        use CiService::*;
+        match ci { 
+            Travis | TravisPro => {
+                let mut temp = Self::get_travis_env();
+                temp.name = ci;
+                Some(temp)
+            },
+            Circle => Some(Self::get_circle_env()),
+            Semaphore => Some(Self::get_semaphore_env()),
+            Jenkins => Some(Self::get_jenkins_env()),
+            _ => Self::get_generic_env(),
+        }
+    }
+
+    /// Gets service variables from travis environment
+    /// Warning is unable to figure out if travis pro or free so assumes free
+    pub fn get_travis_env() -> Self {
+        let id = var("TRAVIS_JOB_ID").ok();
+        let pr = match var("TRAVIS_PULL_REQUEST") {
+            Ok(ref s) if s != "false" => Some(s.to_string()),
+            _ => None,
+        };
+        let branch = var("TRAVIS_BRANCH").ok();
+        Service {
+            name: CiService::Travis,
+            job_id: id,
+            number: None,
+            build_url: None,
+            pull_request: pr,
+            branch: branch,
+        }
+    }
+
+    pub fn get_circle_env() -> Self {
+        let num = var("CIRCLE_BUILD_NUM").ok();
+        let branch = var("CIRCLE_BRANCH").ok();
+        Service {
+            name: CiService::Circle,
+            job_id: None, // Not happy with this but apparently it works
+            number: num,
+            build_url: None,
+            pull_request: None,
+            branch: branch,
+        }
+    }
+
+    pub fn get_jenkins_env() -> Self {
+        let num = var("BUILD_NUM").ok();
+        let url = var("BUILD_URL").ok();
+        let branch = var("GIT_BRANCH").ok();
+        Service {
+            name: CiService::Jenkins,
+            job_id: None, // Not happy with this but apparently it works
+            number: num,
+            build_url: url,
+            pull_request: None,
+            branch: branch,
+        }
+    }
+
+    pub fn get_semaphore_env() -> Self {
+        let num = var("SEMAPHORE_BUILD_NUMBER").ok();
+        let pr = var("PULL_REQUEST_NUMBER").ok();
+        Service{
+            name: CiService::Semaphore,
+            job_id: None,
+            number: num,
+            pull_request: pr,
+            branch: None,
+            build_url: None,
+        }
+    }
+
+    pub fn get_generic_env() -> Option<Self> {
+        let name = var("CI_NAME").ok();
+        let num = var("CI_BUILD_NUMBER").ok();
+        let id = var("CI_JOB_ID").ok();
+        let url = var("CI_BUILD_URL").ok();
+        let branch = var("CI_BRANCH").ok();
+        let pr = var("CI_PULL_REQUEST").ok();
+        if name.is_some() || num.is_some() || id.is_some() || url.is_some() ||
+            branch.is_some() || pr.is_some() {
+            
+            let name = name.unwrap_or_else(|| "unknown".to_string());
+            
+            Some(Service {
+                name: CiService::from_str(&name).unwrap(),
+                job_id: id,
+                number: num,
+                pull_request: pr,
+                branch: branch,
+                build_url: url,
+            })
+        } else {
+            None
+        }
+    }
 }
 
 /// Repo tokens are alternatives to Services and involve a secret token on coveralls
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identity {
     RepoToken(String),
-    ServiceToken(Service)
+    ServiceToken(String, Service)
+}
+
+impl Identity {
+    /// Creates a report identity from a coveralls repo token if one is available
+    /// Only checks via environment variables - this doesn't take into account 
+    /// the presence of a .coveralls.yml file
+    pub fn from_token() -> Option<Self> {
+        match var("COVERALLS_REPO_TOKEN") {
+            Ok(token) => Some(Identity::RepoToken(token)),
+            _ => None,
+        }
+    }
+
+    /// Creates a report identity based on the CI service auto-detect functionality
+    pub fn from_env() -> Option<Self> {
+        let token = match var("COVERALLS_REPO_TOKEN") {
+            Ok(token) => token,
+            _ => String::new(),
+        };
+        match Service::from_env() {
+            Some(s) => Some(Identity::ServiceToken(token, s)),
+            _ => None
+        }
+    }
+
+    /// Prefers a coveralls repo token otherwise falls back on CI environment 
+    /// variables
+    pub fn best_match() -> Option<Self> {
+        if let Some(s) = Self::from_env() {
+            Some(s)
+        } else if let Some(s) = Self::from_token() {
+            Some(s)
+        } else {
+            None
+        }
+    }
+
+    pub fn best_match_with_token(token: String) -> Self {
+        if let Some(Identity::ServiceToken(_, s)) = Self::from_env() {
+            Identity::ServiceToken(token, s)
+        } else {
+            Identity::RepoToken(token)
+        }
+    }
 }
 
 
@@ -297,16 +468,33 @@ impl Serialize for CoverallsReport {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         let size = 1 + match self.id {
             Identity::RepoToken(_) => 1 + self.commit.is_some() as usize,
-            Identity::ServiceToken(_) => 2 + self.commit.is_some() as usize,
+            Identity::ServiceToken(_, _) => 2 + self.commit.is_some() as usize,
         };
         let mut s = serializer.serialize_struct("CoverallsReport", size)?;
         match self.id {
             Identity::RepoToken(ref r) => {
                 s.serialize_field("repo_token", &r)?;
             },
-            Identity::ServiceToken(ref serv) => {
-                s.serialize_field("service_name", serv.service_name.value())?;
-                s.serialize_field("service_job_id", &serv.service_job_id)?;
+            Identity::ServiceToken(ref r, ref serv) => {
+                if !r.is_empty() {
+                    s.serialize_field("repo_token", &r)?;
+                }
+                s.serialize_field("service_name", serv.name.value())?;
+                if let Some(ref id) = serv.job_id {
+                    s.serialize_field("service_job_id", id)?;
+                }
+                if let Some(ref num) = serv.number {
+                    s.serialize_field("service_number", &num)?;
+                }
+                if let Some(ref url) = serv.build_url {
+                    s.serialize_field("service_build_url", &url)?;
+                }
+                if let Some(ref branch) = serv.branch {
+                    s.serialize_field("service_branch", &branch)?;
+                }
+                if let Some(ref pr) = serv.pull_request {
+                    s.serialize_field("service_pull_request", &pr)?;
+                }
             },
         }
         if let Some(ref sha) = self.commit {

@@ -5,6 +5,9 @@ use std::path::Path;
 use std::collections::HashMap;
 use coveralls_api::*;
 
+
+
+
 #[test]
 fn test_submission() {
     let mut travis = true;
@@ -40,10 +43,14 @@ fn test_submission() {
                              false).unwrap();
     let id = if travis {
         let serv = Service{
-            service_name: CiService::Travis,
-            service_job_id:secret_key
+            name: CiService::Travis,
+            job_id: Some(secret_key),
+            number: None,
+            build_url: None,
+            branch: None,
+            pull_request: None,
         };
-        Identity::ServiceToken(serv)
+        Identity::ServiceToken(String::new(), serv)
     } else {
         Identity::RepoToken(secret_key)
     };
