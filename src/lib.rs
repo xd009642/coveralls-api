@@ -2,21 +2,20 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate md5;
-extern crate deflate;
 extern crate curl;
+extern crate deflate;
+extern crate md5;
 
-use std::env::var;
-use std::io;
-use std::path::Path;
-use std::fs::File;
-use std::io::prelude::*;
-use std::collections::HashMap;
-use std::str::FromStr;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
 use curl::easy::{Easy, Form};
 use deflate::deflate_bytes_gzip;
-
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+use std::collections::HashMap;
+use std::env::var;
+use std::fs::File;
+use std::io;
+use std::io::prelude::*;
+use std::path::Path;
+use std::str::FromStr;
 
 /// Representation of branch data
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
@@ -29,22 +28,22 @@ pub struct BranchData {
 
 /// Expands the line map into the form expected by coveralls (includes uncoverable lines)
 fn expand_lines(lines: &HashMap<usize, usize>, line_count: usize) -> Vec<Option<usize>> {
-    (0..line_count).map(|x| match lines.get(&(x+1)){
-        Some(x) => Some(*x),
-        None => None
-    }).collect::<Vec<Option<usize>>>()
+    (0..line_count)
+        .map(|x| match lines.get(&(x + 1)) {
+            Some(x) => Some(*x),
+            None => None,
+        })
+        .collect::<Vec<Option<usize>>>()
 }
 
 /// Expands branch coverage into the less user friendly format used by coveralls -
 /// an array with the contents of the structs repeated one after another in an array.
 fn expand_branches(branches: &Vec<BranchData>) -> Vec<usize> {
-    branches.iter()
-            .flat_map(|x| vec![x.line_number, x.block_name, x.branch_number, x.hits])
-            .collect::<Vec<usize>>()
+    branches
+        .iter()
+        .flat_map(|x| vec![x.line_number, x.block_name, x.branch_number, x.hits])
+        .collect::<Vec<usize>>()
 }
-
-
-
 
 /// Struct representing source files and the coverage for coveralls
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
@@ -59,27 +58,27 @@ pub struct Source {
     /// 1+ - covered and how often
     coverage: Vec<Option<usize>>,
     /// Branch data for branch coverage.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     branches: Option<Vec<usize>>,
     /// Contents of the source file (Manual Repos on Enterprise only)
-    #[serde(skip_serializing_if="Option::is_none")]
-    source: Option<String>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<String>,
 }
-
 
 impl Source {
     /// Creates a source description for a given file.
     /// display_name: Name given to the source file
-    /// repo_path - Path to file relative to repository root 
+    /// repo_path - Path to file relative to repository root
     /// path - absolute path on file system
     /// lines - map of line numbers to hits
     /// branches - optional, vector of branches in code
-    pub fn new(repo_path: &Path, 
-           path: &Path, 
-           lines: &HashMap<usize, usize>, 
-           branches: &Option<Vec<BranchData>>,
-           include_source: bool) -> Result<Source, io::Error> {
-        
+    pub fn new(
+        repo_path: &Path,
+        path: &Path,
+        lines: &HashMap<usize, usize>,
+        branches: &Option<Vec<BranchData>>,
+        include_source: bool,
+    ) -> Result<Source, io::Error> {
         let mut code = File::open(path)?;
         let mut content = String::new();
         code.read_to_string(&mut content)?;
@@ -97,9 +96,9 @@ impl Source {
         Ok(Source {
             name: repo_path.to_str().unwrap_or("").to_string(),
             source_digest: format!("{:x}", md5::compute(content)),
-            coverage:  expand_lines(lines, line_count),
+            coverage: expand_lines(lines, line_count),
             branches: brch,
-            source:src,
+            source: src,
         })
     }
 }
@@ -124,7 +123,7 @@ pub struct Remote {
 pub struct GitInfo {
     pub head: Head,
     pub branch: String,
-    pub remotes: Vec<Remote>
+    pub remotes: Vec<Remote>,
 }
 
 /// Reports the status of a coveralls report upload.
@@ -138,7 +137,7 @@ pub enum UploadStatus {
     Pending,
     /// Retrieving response code resulted in a CURL error no way of determining
     /// success
-    Unknown
+    Unknown,
 }
 
 /// Continuous Integration services and the string identifiers coveralls.io
@@ -153,7 +152,7 @@ pub enum CiService {
     Codeship,
     /// Other Ci Service, coveralls-ruby is a valid input which gives same features
     /// as travis for coveralls users.
-    Other(String)
+    Other(String),
 }
 
 impl FromStr for CiService {
@@ -171,7 +170,6 @@ impl FromStr for CiService {
         };
         Ok(res)
     }
-
 }
 
 impl CiService {
@@ -216,7 +214,6 @@ pub struct Service {
 
 impl Service {
     pub fn from_env() -> Option<Self> {
-
         if var("TRAVIS").is_ok() {
             Some(Self::get_travis_env())
         } else if var("CIRCLECI").is_ok() {
@@ -232,12 +229,12 @@ impl Service {
 
     pub fn from_ci(ci: CiService) -> Option<Self> {
         use CiService::*;
-        match ci { 
+        match ci {
             Travis | TravisPro => {
                 let mut temp = Self::get_travis_env();
                 temp.name = ci;
                 Some(temp)
-            },
+            }
             Circle => Some(Self::get_circle_env()),
             Semaphore => Some(Self::get_semaphore_env()),
             Jenkins => Some(Self::get_jenkins_env()),
@@ -294,7 +291,7 @@ impl Service {
     pub fn get_semaphore_env() -> Self {
         let num = var("SEMAPHORE_BUILD_NUMBER").ok();
         let pr = var("PULL_REQUEST_NUMBER").ok();
-        Service{
+        Service {
             name: CiService::Semaphore,
             job_id: None,
             number: num,
@@ -311,11 +308,15 @@ impl Service {
         let url = var("CI_BUILD_URL").ok();
         let branch = var("CI_BRANCH").ok();
         let pr = var("CI_PULL_REQUEST").ok();
-        if name.is_some() || num.is_some() || id.is_some() || url.is_some() ||
-            branch.is_some() || pr.is_some() {
-            
+        if name.is_some()
+            || num.is_some()
+            || id.is_some()
+            || url.is_some()
+            || branch.is_some()
+            || pr.is_some()
+        {
             let name = name.unwrap_or_else(|| "unknown".to_string());
-            
+
             Some(Service {
                 name: CiService::from_str(&name).unwrap(),
                 job_id: id,
@@ -334,12 +335,12 @@ impl Service {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identity {
     RepoToken(String),
-    ServiceToken(String, Service)
+    ServiceToken(String, Service),
 }
 
 impl Identity {
     /// Creates a report identity from a coveralls repo token if one is available
-    /// Only checks via environment variables - this doesn't take into account 
+    /// Only checks via environment variables - this doesn't take into account
     /// the presence of a .coveralls.yml file
     pub fn from_token() -> Option<Self> {
         match var("COVERALLS_REPO_TOKEN") {
@@ -356,11 +357,11 @@ impl Identity {
         };
         match Service::from_env() {
             Some(s) => Some(Identity::ServiceToken(token, s)),
-            _ => None
+            _ => None,
         }
     }
 
-    /// Prefers a coveralls repo token otherwise falls back on CI environment 
+    /// Prefers a coveralls repo token otherwise falls back on CI environment
     /// variables
     pub fn best_match() -> Option<Self> {
         if let Some(s) = Self::from_env() {
@@ -381,9 +382,8 @@ impl Identity {
     }
 }
 
-
-/// Coveralls report struct 
-/// for more details: https://coveralls.zendesk.com/hc/en-us/articles/201350799-API-Reference 
+/// Coveralls report struct
+/// for more details: https://coveralls.zendesk.com/hc/en-us/articles/201350799-API-Reference
 pub struct CoverallsReport {
     id: Identity,
     /// List of source files which includes coverage information.
@@ -396,9 +396,8 @@ pub struct CoverallsReport {
     handle: Easy,
 }
 
-
 impl CoverallsReport {
-    /// Create new coveralls report given a unique identifier which allows 
+    /// Create new coveralls report given a unique identifier which allows
     /// coveralls to identify the user and project
     pub fn new(id: Identity) -> CoverallsReport {
         CoverallsReport {
@@ -414,7 +413,7 @@ impl CoverallsReport {
     pub fn add_source(&mut self, source: Source) {
         self.source_files.push(source);
     }
-    
+
     /// Sets the commit ID. Overrides more detailed git info
     pub fn set_commit(&mut self, commit: &str) {
         self.commit = Some(commit.to_string());
@@ -438,8 +437,8 @@ impl CoverallsReport {
         let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
-        };      
-        
+        };
+
         let body = deflate_bytes_gzip(&body);
         self.handle.url(url).unwrap();
         let mut form = Form::new();
@@ -448,8 +447,8 @@ impl CoverallsReport {
             .buffer("report", body)
             .add()
             .unwrap();
-       self.handle.httppost(form).unwrap();
-       self.handle.perform()
+        self.handle.httppost(form).unwrap();
+        self.handle.perform()
     }
 
     pub fn upload_status(&mut self) -> UploadStatus {
@@ -462,10 +461,11 @@ impl CoverallsReport {
     }
 }
 
-
 impl Serialize for CoverallsReport {
-    
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         let size = 1 + match self.id {
             Identity::RepoToken(_) => 1 + self.commit.is_some() as usize,
             Identity::ServiceToken(_, _) => 2 + self.commit.is_some() as usize,
@@ -474,7 +474,7 @@ impl Serialize for CoverallsReport {
         match self.id {
             Identity::RepoToken(ref r) => {
                 s.serialize_field("repo_token", &r)?;
-            },
+            }
             Identity::ServiceToken(ref r, ref serv) => {
                 if !r.is_empty() {
                     s.serialize_field("repo_token", &r)?;
@@ -495,7 +495,7 @@ impl Serialize for CoverallsReport {
                 if let Some(ref pr) = serv.pull_request {
                     s.serialize_field("service_pull_request", &pr)?;
                 }
-            },
+            }
         }
         if let Some(ref sha) = self.commit {
             s.serialize_field("commit_sha", &sha)?;
@@ -508,12 +508,11 @@ impl Serialize for CoverallsReport {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
     use std::collections::HashMap;
-    use ::*;
+    use *;
 
     #[test]
     fn test_expand_lines() {
@@ -522,8 +521,19 @@ mod tests {
         example.insert(5, 1);
         example.insert(6, 1);
         example.insert(8, 2);
-        
-        let expected = vec![None, None, None, None, Some(1), Some(1), None, Some(2), None, None];
+
+        let expected = vec![
+            None,
+            None,
+            None,
+            None,
+            Some(1),
+            Some(1),
+            None,
+            Some(2),
+            None,
+            None,
+        ];
 
         assert_eq!(expand_lines(&example, line_count), expected);
     }
@@ -537,16 +547,15 @@ mod tests {
             hits: 1,
         };
         let b2 = BranchData {
-            line_number:4,
+            line_number: 4,
             block_name: 1,
             branch_number: 2,
-            hits: 0
+            hits: 0,
         };
 
         let v = vec![b1, b2];
         let actual = expand_branches(&v);
-        let expected = vec![3,1,1,1,4,1,2,0];
-        assert_eq!(actual, expected);    
+        let expected = vec![3, 1, 1, 1, 4, 1, 2, 0];
+        assert_eq!(actual, expected);
     }
-
 }
