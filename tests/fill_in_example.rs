@@ -1,12 +1,9 @@
 extern crate coveralls_api;
 extern crate serde_json;
+use coveralls_api::*;
+use std::collections::HashMap;
 use std::env;
 use std::path::Path;
-use std::collections::HashMap;
-use coveralls_api::*;
-
-
-
 
 #[test]
 fn test_submission() {
@@ -28,21 +25,20 @@ fn test_submission() {
     let repo_path = Path::new("tests/example/mysource.rs");
     let mut abs_path = env::current_dir().unwrap();
     abs_path.push(repo_path);
-    assert!(abs_path.exists(), "Run the test from project root directory");
+    assert!(
+        abs_path.exists(),
+        "Run the test from project root directory"
+    );
 
     let mut lines: HashMap<usize, usize> = HashMap::new();
-    lines.insert(4,0);
+    lines.insert(4, 0);
     lines.insert(5, 1);
     lines.insert(6, 2);
     lines.insert(7, 1);
 
-    let source = Source::new(&repo_path,
-                             &abs_path.as_path(),
-                             &lines,
-                             &None,
-                             false).unwrap();
+    let source = Source::new(&repo_path, &abs_path.as_path(), &lines, &None, false).unwrap();
     let id = if travis {
-        let serv = Service{
+        let serv = Service {
             name: CiService::Travis,
             job_id: Some(secret_key),
             number: None,
@@ -64,6 +60,5 @@ fn test_submission() {
             UploadStatus::Succeeded => break,
             _ => {}
         }
-
     }
 }
