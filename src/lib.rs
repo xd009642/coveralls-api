@@ -1,14 +1,9 @@
-extern crate serde;
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-extern crate curl;
-extern crate deflate;
-extern crate md5;
-
 use curl::easy::{Easy, Form};
 use deflate::deflate_bytes_gzip;
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Deserialize, Serialize,
+};
 use std::collections::HashMap;
 use std::env::var;
 use std::fs::File;
@@ -18,7 +13,9 @@ use std::path::Path;
 use std::str::FromStr;
 
 /// Representation of branch data
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(
+    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deserialize, Serialize,
+)]
 pub struct BranchData {
     pub line_number: usize,
     pub block_name: usize,
@@ -46,7 +43,7 @@ fn expand_branches(branches: &Vec<BranchData>) -> Vec<usize> {
 }
 
 /// Struct representing source files and the coverage for coveralls
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deserialize, Serialize)]
 pub struct Source {
     /// Name of the source file. Represented as path relative to root of repo
     name: String,
@@ -103,7 +100,7 @@ impl Source {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deserialize, Serialize)]
 pub struct Head {
     pub id: String,
     pub author_name: String,
@@ -113,13 +110,13 @@ pub struct Head {
     pub message: String,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deserialize, Serialize)]
 pub struct Remote {
     pub name: String,
     pub url: String,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deserialize, Serialize)]
 pub struct GitInfo {
     pub head: Head,
     pub branch: String,
@@ -127,7 +124,7 @@ pub struct GitInfo {
 }
 
 /// Reports the status of a coveralls report upload.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
 pub enum UploadStatus {
     /// Upload failed. Includes HTTP error code.
     Failed(u32),
@@ -142,7 +139,7 @@ pub enum UploadStatus {
 
 /// Continuous Integration services and the string identifiers coveralls.io
 /// uses to present them.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
 pub enum CiService {
     Travis,
     TravisPro,
@@ -511,8 +508,8 @@ impl Serialize for CoverallsReport {
 #[cfg(test)]
 mod tests {
 
+    use crate::*;
     use std::collections::HashMap;
-    use *;
 
     #[test]
     fn test_expand_lines() {
