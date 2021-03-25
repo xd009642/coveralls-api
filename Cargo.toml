@@ -18,5 +18,5 @@ md5 = "0.7.0"
 curl = "0.4.6"
 
 [dependencies.deflate]
-version = "0.8.2"
+version = "0.9.1"
 features =["gzip"]
