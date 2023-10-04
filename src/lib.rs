@@ -1,5 +1,11 @@
-use curl::easy::{Easy, Form};
 use deflate::deflate_bytes_gzip;
+use reqwest::{
+    blocking::{
+        multipart::{Form, Part},
+        Client,
+    },
+    StatusCode,
+};
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,
@@ -389,8 +395,10 @@ pub struct CoverallsReport {
     commit: Option<String>,
     /// Git information
     git: Option<GitInfo>,
-    /// Handle for curl communications
-    handle: Easy,
+    /// Client for HTTP requests
+    client: Client,
+    /// Last upload status code
+    last_status: UploadStatus,
 }
 
 impl CoverallsReport {
@@ -402,7 +410,8 @@ impl CoverallsReport {
             source_files: Vec::new(),
             commit: None,
             git: None,
-            handle: Easy::new(),
+            client: Client::new(),
+            last_status: UploadStatus::Pending,
         }
     }
 
@@ -425,36 +434,37 @@ impl CoverallsReport {
 
     /// Send report to the coveralls.io directly. For coveralls hosted on other
     /// platforms see send_to_endpoint
-    pub fn send_to_coveralls(&mut self) -> Result<(), curl::Error> {
+    pub fn send_to_coveralls(&mut self) -> Result<(), reqwest::Error> {
         self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
     }
 
     /// Sends coveralls report to the specified url
-    pub fn send_to_endpoint(&mut self, url: &str) -> Result<(), curl::Error> {
+    pub fn send_to_endpoint(&mut self, url: &str) -> Result<(), reqwest::Error> {
         let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
         };
 
         let body = deflate_bytes_gzip(&body);
-        self.handle.url(url).unwrap();
-        let mut form = Form::new();
-        form.part("json_file")
-            .content_type("gzip/json")
-            .buffer("report", body)
-            .add()
-            .unwrap();
-        self.handle.httppost(form).unwrap();
-        self.handle.perform()
+
+        let form = Form::new().part(
+            "json_file",
+            Part::bytes(body).mime_str("gzip/json")?.file_name("report"),
+        );
+
+        let response = self.client.post(url).multipart(form).send()?;
+
+        let code = response.status();
+        self.last_status = match code {
+            StatusCode::OK => UploadStatus::Succeeded,
+            _ => UploadStatus::Failed(code.as_u16() as u32),
+        };
+
+        Ok(())
     }
 
     pub fn upload_status(&mut self) -> UploadStatus {
-        match self.handle.response_code() {
-            Ok(200) => UploadStatus::Succeeded,
-            Ok(0) => UploadStatus::Pending,
-            Ok(x) => UploadStatus::Failed(x),
-            _ => UploadStatus::Unknown,
-        }
+        self.last_status
     }
 }
 
