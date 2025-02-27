@@ -12,6 +12,7 @@ use serde::{
 };
 use std::collections::HashMap;
 use std::env::var;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -397,10 +398,19 @@ pub struct ErrorResponse {
     pub message: String,
 }
 
-#[derive(Debug)]
+impl fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("http error: {0}")]
     Http(reqwest::Error),
+    #[error("{0}")]
     Api(ErrorResponse),
+    #[error("unrecognized API error: {0}")]
     UnrecognisedMessage(String),
 }
 
