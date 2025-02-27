@@ -388,7 +388,7 @@ pub struct CoverallsReport {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize)]
 pub struct Response {
-    pub job: String,
+    pub message: String,
     pub url: String,
 }
 
@@ -411,7 +411,7 @@ pub enum Error {
     #[error("{0}")]
     Api(ErrorResponse),
     #[error("unrecognized API error: {0}")]
-    UnrecognisedMessage(String),
+    UnrecognizedMessage(String),
 }
 
 impl From<reqwest::Error> for Error {
@@ -477,11 +477,11 @@ impl CoverallsReport {
         match code {
             StatusCode::OK => match serde_json::from_str(&text) {
                 Ok(resp) => Ok(resp),
-                Err(_e) => Err(Error::UnrecognisedMessage(text)),
+                Err(_e) => Err(Error::UnrecognizedMessage(text)),
             },
             _ => match serde_json::from_str(&text) {
                 Ok(resp) => Err(Error::Api(resp)),
-                Err(_e) => Err(Error::UnrecognisedMessage(text)),
+                Err(_e) => Err(Error::UnrecognizedMessage(text)),
             },
         }
     }
