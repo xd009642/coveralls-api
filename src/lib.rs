@@ -473,16 +473,16 @@ impl CoverallsReport {
         let response = self.client.post(url).multipart(form).send()?;
 
         let code = response.status();
-        println!("{:?}", response.text());
+        let text = response.text()?;
         match code {
-            StatusCode::OK => {
-                let response = response.json()?;
-                Ok(response)
-            }
-            _ => {
-                let response: ErrorResponse = response.json()?;
-                Err(Error::Api(response))
-            }
+            StatusCode::OK => match serde_json::from_str(&text) {
+                Ok(resp) => Ok(resp),
+                Err(_e) => Err(Error::UnrecognisedMessage(text)),
+            },
+            _ => match serde_json::from_str(&text) {
+                Ok(resp) => Err(Error::Api(resp)),
+                Err(_e) => Err(Error::UnrecognisedMessage(text)),
+            },
         }
     }
 }
