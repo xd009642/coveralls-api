@@ -129,20 +129,6 @@ pub struct GitInfo {
     pub remotes: Vec<Remote>,
 }
 
-/// Reports the status of a coveralls report upload.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
-pub enum UploadStatus {
-    /// Upload failed. Includes HTTP error code.
-    Failed(u32),
-    /// Upload succeeded
-    Succeeded,
-    /// Waiting for response from server or timeout
-    Pending,
-    /// Retrieving response code resulted in a CURL error no way of determining
-    /// success
-    Unknown,
-}
-
 /// Continuous Integration services and the string identifiers coveralls.io
 /// uses to present them.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
@@ -397,8 +383,31 @@ pub struct CoverallsReport {
     git: Option<GitInfo>,
     /// Client for HTTP requests
     client: Client,
-    /// Last upload status code
-    last_status: UploadStatus,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize)]
+pub struct Response {
+    pub job: String,
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize)]
+pub struct ErrorResponse {
+    pub error: bool,
+    pub message: String,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Http(reqwest::Error),
+    Api(ErrorResponse),
+    UnrecognisedMessage(String),
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(other: reqwest::Error) -> Self {
+        Self::Http(other)
+    }
 }
 
 impl CoverallsReport {
@@ -411,7 +420,6 @@ impl CoverallsReport {
             commit: None,
             git: None,
             client: Client::new(),
-            last_status: UploadStatus::Pending,
         }
     }
 
@@ -434,12 +442,12 @@ impl CoverallsReport {
 
     /// Send report to the coveralls.io directly. For coveralls hosted on other
     /// platforms see send_to_endpoint
-    pub fn send_to_coveralls(&mut self) -> Result<(), reqwest::Error> {
+    pub fn send_to_coveralls(&self) -> Result<Response, Error> {
         self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
     }
 
     /// Sends coveralls report to the specified url
-    pub fn send_to_endpoint(&mut self, url: &str) -> Result<(), reqwest::Error> {
+    pub fn send_to_endpoint(&self, url: &str) -> Result<Response, Error> {
         let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
@@ -455,16 +463,16 @@ impl CoverallsReport {
         let response = self.client.post(url).multipart(form).send()?;
 
         let code = response.status();
-        self.last_status = match code {
-            StatusCode::OK => UploadStatus::Succeeded,
-            _ => UploadStatus::Failed(code.as_u16() as u32),
-        };
-
-        Ok(())
-    }
-
-    pub fn upload_status(&mut self) -> UploadStatus {
-        self.last_status
+        match code {
+            StatusCode::OK => {
+                let response = response.json()?;
+                Ok(response)
+            }
+            _ => {
+                let response: ErrorResponse = response.json()?;
+                Err(Error::Api(response))
+            }
+        }
     }
 }
 

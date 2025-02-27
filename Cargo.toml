@@ -13,9 +13,8 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.2", features = ["derive"]}
 serde_json = "1.0.2"
-serde_derive = "1.0.2"
 md5 = "0.7.0"
-reqwest = { version = "0.12.4", features = ["blocking", "multipart"] }
+reqwest = { version = "0.12.4", default-features = false, features = ["default-tls", "blocking", "json", "multipart", "macos-system-configuration"] }
 
 [dependencies.deflate]
 version = "1.0.0"
