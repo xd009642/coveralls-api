@@ -473,6 +473,7 @@ impl CoverallsReport {
         let response = self.client.post(url).multipart(form).send()?;
 
         let code = response.status();
+        println!("{:?}", code.text());
         match code {
             StatusCode::OK => {
                 let response = response.json()?;
