@@ -12,6 +12,7 @@ use serde::{
 };
 use std::collections::HashMap;
 use std::env::var;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -127,20 +128,6 @@ pub struct GitInfo {
     pub head: Head,
     pub branch: String,
     pub remotes: Vec<Remote>,
-}
-
-/// Reports the status of a coveralls report upload.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
-pub enum UploadStatus {
-    /// Upload failed. Includes HTTP error code.
-    Failed(u32),
-    /// Upload succeeded
-    Succeeded,
-    /// Waiting for response from server or timeout
-    Pending,
-    /// Retrieving response code resulted in a CURL error no way of determining
-    /// success
-    Unknown,
 }
 
 /// Continuous Integration services and the string identifiers coveralls.io
@@ -397,8 +384,40 @@ pub struct CoverallsReport {
     git: Option<GitInfo>,
     /// Client for HTTP requests
     client: Client,
-    /// Last upload status code
-    last_status: UploadStatus,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize)]
+pub struct Response {
+    pub message: String,
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Deserialize)]
+pub struct ErrorResponse {
+    pub error: bool,
+    pub message: String,
+}
+
+impl fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("http error: {0}")]
+    Http(reqwest::Error),
+    #[error("{0}")]
+    Api(ErrorResponse),
+    #[error("unrecognized API error: {0}")]
+    UnrecognizedMessage(String),
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(other: reqwest::Error) -> Self {
+        Self::Http(other)
+    }
 }
 
 impl CoverallsReport {
@@ -411,7 +430,6 @@ impl CoverallsReport {
             commit: None,
             git: None,
             client: Client::new(),
-            last_status: UploadStatus::Pending,
         }
     }
 
@@ -434,12 +452,12 @@ impl CoverallsReport {
 
     /// Send report to the coveralls.io directly. For coveralls hosted on other
     /// platforms see send_to_endpoint
-    pub fn send_to_coveralls(&mut self) -> Result<(), reqwest::Error> {
+    pub fn send_to_coveralls(&self) -> Result<Response, Error> {
         self.send_to_endpoint("https://coveralls.io/api/v1/jobs")
     }
 
     /// Sends coveralls report to the specified url
-    pub fn send_to_endpoint(&mut self, url: &str) -> Result<(), reqwest::Error> {
+    pub fn send_to_endpoint(&self, url: &str) -> Result<Response, Error> {
         let body = match serde_json::to_vec(&self) {
             Ok(body) => body,
             Err(e) => panic!("Error {}", e),
@@ -455,16 +473,17 @@ impl CoverallsReport {
         let response = self.client.post(url).multipart(form).send()?;
 
         let code = response.status();
-        self.last_status = match code {
-            StatusCode::OK => UploadStatus::Succeeded,
-            _ => UploadStatus::Failed(code.as_u16() as u32),
-        };
-
-        Ok(())
-    }
-
-    pub fn upload_status(&mut self) -> UploadStatus {
-        self.last_status
+        let text = response.text()?;
+        match code {
+            StatusCode::OK => match serde_json::from_str(&text) {
+                Ok(resp) => Ok(resp),
+                Err(_e) => Err(Error::UnrecognizedMessage(text)),
+            },
+            _ => match serde_json::from_str(&text) {
+                Ok(resp) => Err(Error::Api(resp)),
+                Err(_e) => Err(Error::UnrecognizedMessage(text)),
+            },
+        }
     }
 }
 
