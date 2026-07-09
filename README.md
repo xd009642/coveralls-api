@@ -1,6 +1,6 @@
 # Coveralls-api for rust
 
-![Build Status](https://travis-ci.org/xd009642/coveralls-api.svg?branch=master) [![Latest Version](https://img.shields.io/crates/v/coveralls-api.svg)](https://crates.io/crates/coveralls-api)  [![License:MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Build Status](https://github.com/xd009642/coveralls-api/actions/workflows/ci.yml/badge.svg?branch=master) [![Latest Version](https://img.shields.io/crates/v/coveralls-api.svg)](https://crates.io/crates/coveralls-api)  [![License:MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This project is intended to allow rust code to make requests to the coveralls.io API. Created to aid the development of cargo-tarpaulin. It allows you to build up a coveralls report for each source file using the Source struct, then package them up in the Report struct with tokens used to identify the repository and then send them to https://coveralls.io or a custom endpoint.
 
