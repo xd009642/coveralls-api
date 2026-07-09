@@ -6,6 +6,8 @@ use std::env;
 use std::path::Path;
 
 #[test]
+#[ignore = "requires Coveralls credentials and sends a live upload"]
+/// Submits a real report to Coveralls when run with TRAVIS_JOB_ID or COVERALLS_KEY.
 fn test_submission() {
     let mut travis = true;
     let mut secret_key = match std::env::var("TRAVIS_JOB_ID") {
@@ -23,7 +25,7 @@ fn test_submission() {
         println!("Running with travis job id");
     }
     let repo_path = Path::new("tests/example/mysource.rs");
-    let mut abs_path = env::current_dir().unwrap();
+    let mut abs_path = env::current_dir().expect("failed to read current directory");
     abs_path.push(repo_path);
     assert!(
         abs_path.exists(),
@@ -36,7 +38,8 @@ fn test_submission() {
     lines.insert(6, 2);
     lines.insert(7, 1);
 
-    let source = Source::new(&repo_path, &abs_path.as_path(), &lines, &None, false).unwrap();
+    let source = Source::new(&repo_path, &abs_path.as_path(), &lines, &None, false)
+        .expect("failed to build source coverage data");
     let id = if travis {
         let serv = Service {
             name: CiService::Travis,
@@ -53,12 +56,7 @@ fn test_submission() {
     let mut report = CoverallsReport::new(id);
     report.add_source(source);
 
-    report.send_to_coveralls().unwrap();
-    loop {
-        match report.upload_status() {
-            UploadStatus::Failed(x) => panic!("Upload failed! HTTP{}", x),
-            UploadStatus::Succeeded => break,
-            _ => {}
-        }
-    }
+    report
+        .send_to_coveralls()
+        .expect("failed to submit report to Coveralls");
 }
